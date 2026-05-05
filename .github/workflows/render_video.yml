@@ -19,8 +19,12 @@ jobs:
 
       - name: Run Manim render
         run: |
+          # 给予当前目录写入权限，防止 Permission denied
+          sudo chmod -R 777 .
           mkdir -p output
+          
           docker run --rm \
+            -u root \
             -v ${{ github.workspace }}:/app \
             -v ${{ github.workspace }}/output:/app/output \
             mymanimapp \
