@@ -1,7 +1,7 @@
 name: Render Manim Video
 
 on:
-  workflow_dispatch: # 允许在 Actions 页面点击手动运行
+  workflow_dispatch: # 手动触发开关
 
 jobs:
   render:
@@ -19,29 +19,32 @@ jobs:
 
       - name: Run Manim render
         run: |
-          # 1. 确保当前工作目录有完全的写入权限
+          # 1. 初始权限准备
           sudo chmod -R 777 .
           mkdir -p output
           
-          # 2. 运行 Docker 渲染
-          # 使用 -u root 避免权限拦截
-          # 将媒体输出重定向到当前目录下的 temp_media
+          # 2. 运行 Manim 渲染
+          # 使用 -u root 确保容器有权创建媒体目录
           docker run --rm \
             -u root \
             -v ${{ github.workspace }}:/app \
             mymanimapp \
             main.py SceneName --media_dir ./temp_media
           
-          # 3. 寻找生成的 MP4 文件并移动到 output 目录
-          # 这样无论 Manim 内部生成的子文件夹结构如何，都能精准抓取视频
-          echo "正在查找渲染生成的视频文件..."
+          # 3. 核心修复：渲染完成后，强制放开生成的 temp_media 目录权限
+          # 否则 GitHub Actions 默认用户无权移动 root 创建的视频文件
+          echo "正在处理渲染结果的访问权限..."
+          sudo chmod -R 777 temp_media
+          
+          # 4. 查找并提取生成的 MP4 文件
+          echo "正在查找并移动视频文件到输出目录..."
           find temp_media -name "*.mp4" -exec mv {} output/output.mp4 \;
           
-          # 检查文件是否成功移动
+          # 5. 最终检查
           if [ -f "output/output.mp4" ]; then
-            echo "视频已成功生成并准备上传。"
+            echo "恭喜！视频渲染并提取成功。"
           else
-            echo "错误：未找到生成的视频文件。"
+            echo "错误：未能找到渲染生成的视频文件。"
             exit 1
           fi
 
@@ -50,3 +53,4 @@ jobs:
         with:
           name: rendered-video
           path: output/output.mp4
+          if-no-files-found: error
