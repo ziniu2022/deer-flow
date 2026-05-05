@@ -1,7 +1,7 @@
 name: Render Manim Video
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 允许在 Actions 页面点击手动运行
 
 jobs:
   render:
@@ -19,16 +19,31 @@ jobs:
 
       - name: Run Manim render
         run: |
-          # 给予当前目录写入权限，防止 Permission denied
+          # 1. 确保当前工作目录有完全的写入权限
           sudo chmod -R 777 .
           mkdir -p output
           
+          # 2. 运行 Docker 渲染
+          # 使用 -u root 避免权限拦截
+          # 将媒体输出重定向到当前目录下的 temp_media
           docker run --rm \
             -u root \
             -v ${{ github.workspace }}:/app \
-            -v ${{ github.workspace }}/output:/app/output \
             mymanimapp \
-            main.py SceneName -o output/output.mp4
+            main.py SceneName --media_dir ./temp_media
+          
+          # 3. 寻找生成的 MP4 文件并移动到 output 目录
+          # 这样无论 Manim 内部生成的子文件夹结构如何，都能精准抓取视频
+          echo "正在查找渲染生成的视频文件..."
+          find temp_media -name "*.mp4" -exec mv {} output/output.mp4 \;
+          
+          # 检查文件是否成功移动
+          if [ -f "output/output.mp4" ]; then
+            echo "视频已成功生成并准备上传。"
+          else
+            echo "错误：未找到生成的视频文件。"
+            exit 1
+          fi
 
       - name: Upload rendered video
         uses: actions/upload-artifact@v4
